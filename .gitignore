@@ -155,3 +155,7 @@ $RECYCLE.BIN/
 *invoice*
 *contract*
 *agreement*
+
+# XML
+*.xml
+*.rels
