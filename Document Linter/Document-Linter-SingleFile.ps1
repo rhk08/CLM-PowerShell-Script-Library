@@ -1,17 +1,72 @@
 # Import XML to Custom Data Structure
+
 function Convert-WordXmlToHT {
+    <#
+    Converts HashtableTree produced by Convert-WordXmlToHT() to XML String.
+
+    .ARGUMENTS
+        -X  REQUIRED - Root node of HashtableTree 
+            (use hashTableTreeRootNode.Id to check
+            expects Id == 1)
+
+        -Verbose  <see output below> 
+            
+            Displays Node info during conversion.
+            
+            =======================
+            Node [id: 1]
+            Node [Name: w:document]
+            =======================
+
+    .USAGE
+        returns <hastable>
+            HashtableTree = Convert-WordXmlToHt -X xmlObject
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [Alias('X')]
         [xml] $Xml
     )
 
-    $idRef = [ref] 1
+    Write-Verbose "STARTING Convert-WordXmlToHt"
+
+    $script:__NextId = 1
+    
+    $params = @{
+        Node  = $Xml.DocumentElement
+    }
     return @{
-        Root = Convert-WordXmlNodeToHT -Node $Xml.DocumentElement -IdRef $idRef
+        Root = _Convert-WordXmlNodeToHT @params
     }
 }
-function Convert-WordXmlNodeToHT {
+function _Convert-WordXmlNodeToHT {
+    <# Possible Nodes 
+    'Root' Initial Node
+    @{
+        Root = 
+    }
+
+    'Text', 'Whitespace', 'SignificantWhitespace' Node Type
+    @{
+        Id     = $id
+        Type   = 'T'
+        Text   = $base.Value
+        Parent = $Parent
+    }
+
+    'Element' Node Type
+    @{
+        Id     = $id
+        Type   = 'E'
+        Name   = $base.Name   # QName e.g. w:bookmarkStart
+        Attr   = $attr
+        Kids   = @()
+        Parent = $Parent
+    }
+    #>
+
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -21,22 +76,39 @@ function Convert-WordXmlNodeToHT {
     )
 
     $base = $Node.PSBase
-    $id = $IdRef.Value
-    $IdRef.Value++
+    $id = $script:__NextId
+
+    Write-Verbose "Node [id: $($id)]"
+    Write-Verbose "Node [Name: $($base.Name.ToString())]"
+    Write-Verbose "Node [Type: $($base.NodeType.ToString())]"
+    $script:__NextId++
 
     # Handle Node Types
     # Nodetype: 'Element' is more complex and has children hence we passthrough
 
     # NodeTypes: Text, Whitespace, SignificantWhitespace are more primitive
     # Thus we return early for these types.
-
     switch ($base.NodeType) {
-        'Text', 'Whitespace', 'SignificantWhitespace' {
-            # Specific case for Text nodes (NEED TO CONFIRM)
+        'Text'{
             if ($base.NodeType -eq 'Text' -and $null -eq $base.Value) {
                 return $null
             }
-
+            return @{
+                Id     = $id
+                Type   = 'T'
+                Text   = $base.Value
+                Parent = $Parent
+            }
+        }
+        'Whitespace'{
+            return @{
+                Id     = $id
+                Type   = 'T'
+                Text   = $base.Value
+                Parent = $Parent
+            }
+        }
+        'SignificantWhitespace' {
             return @{
                 Id     = $id
                 Type   = 'T'
@@ -52,6 +124,8 @@ function Convert-WordXmlNodeToHT {
             throw "Unsupported node type encountered: '$($base.NodeType)'. NodeName='$($base.Name)'."
         }
     }
+
+    
 
     # Attributes hashtable mapped as (name -> value) via PSBase
     $attr = @{}
@@ -75,7 +149,7 @@ function Convert-WordXmlNodeToHT {
     # Handle Children ensure order is preserved
     if ($base.ChildNodes -and $base.ChildNodes.Count -gt 0) {
         foreach ($ch in $base.ChildNodes) {
-            $childHT = Convert-WordXmlNodeToHT -Node $ch -Parent $this -IdRef $idRef
+            $childHT = _Convert-WordXmlNodeToHT -Node $ch -Parent $this 
             if ($null -ne $childHT) { $this.Kids += $childHT }
         }
     }
@@ -85,7 +159,8 @@ function Convert-WordXmlNodeToHT {
 
 
 # Helper Functions
-function Escape-WordXmlText {
+function _Escape-WordXmlText {
+    [CmdletBinding()]
     param([AllowNull()][string]$s)
     if ($null -eq $s) { return '' }
 
@@ -96,14 +171,16 @@ function Escape-WordXmlText {
     $s = $s -replace "'", '&apos;' # likely not necessary
     return $s
 }
-function Escape-WordXmlAttr { # Possibly Useless
+function _Escape-WordXmlAttr { # Possibly Useless
+    [CmdletBinding()]
     param([AllowNull()][string]$s)
     if ($null -eq $s) { return '' }
     $s = Escape-WordXmlText $s
     return $s
 }
 # Validation Functions
-function Assert-ValidXmlName {
+function _Assert-ValidXmlName {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Name,
         [string]$Context = 'XML name',
@@ -125,18 +202,36 @@ function Assert-ValidXmlName {
 
 # Export Data Structure to XML String
 function Convert-WordHTToXmlString {
+    <#
+    Converts HashtableTree produced by Convert-WordXmlToHT() to XML String.
+
+    .ARGUMENTS
+        -T  REQUIRED - Root node of HashtableTree 
+            (use hashTableTreeRootNode.Id to check
+            expects Id == 1)
+
+        -Verbose  <see output below> TODO
+
+    .USAGE
+        returns <string>
+            xmlString = Enumerate-Directory -T hashTableTreeRoot
+    #>
+
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [Alias('T')]
         $Tree,
 
         [switch] $SortAttributes
     )
 
     $out = ''
-    $out += Convert-WordHTNodeToXmlString -Node $Tree.Root -SortAttributes:$SortAttributes
+    $out += _Convert-WordHTNodeToXmlString -Node $Tree.Root -SortAttributes:$SortAttributes
     return $out
 }
-function Convert-WordHTNodeToXmlString {
+function _Convert-WordHTNodeToXmlString {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [hashtable] $Node,
@@ -150,7 +245,7 @@ function Convert-WordHTNodeToXmlString {
 
     # Validate Element Node's Name
     $name = $Node.Name
-    Assert-ValidXmlName -Name $name -Context 'Element name' -NodeId $Node.Id
+    _Assert-ValidXmlName -Name $name -Context 'Element name' -NodeId $Node.Id
 
     # Handle Attributes
     $attrs = ''
@@ -159,8 +254,8 @@ function Convert-WordHTNodeToXmlString {
         if ($SortAttributes) { $keys = $keys | Sort-Object }
 
         foreach ($k in $keys) {
-            Assert-ValidXmlName -Name $k -Context 'Attribute name' -NodeId $Node.Id
-            $v = Escape-WordXmlAttr $Node.Attr[$k]
+            _Assert-ValidXmlName -Name $k -Context 'Attribute name' -NodeId $Node.Id
+            $v = _Escape-WordXmlAttr $Node.Attr[$k]
             $attrs += " $k=`"$v`""
         }
     }
@@ -170,7 +265,7 @@ function Convert-WordHTNodeToXmlString {
         $inner = ''
         foreach ($kid in $Node.Kids) {
             if ($kid -is [hashtable] -and $kid.ContainsKey('Type')) {
-                $inner += Convert-WordHTNodeToXmlString -Node $kid -SortAttributes:$SortAttributes
+                $inner += _Convert-WordHTNodeToXmlString -Node $kid -SortAttributes:$SortAttributes
             }
         }
         return "<$name$attrs>$inner</$name>"
@@ -322,14 +417,51 @@ function Lint-DocumentXML {
         [Parameter(Mandatory, Position = 0)]
         [Alias('P')]
         [ValidateNotNullOrEmpty()]
-        [string]$DocumentXMLPath,
+        [string]$DocumentXmlPath,
 
         [switch]$Fix
     )
 
     # Covert XML to HashTable Tree
+    try {
+        [xml]$documentXmlObject = Get-Content -LiteralPath $DocumentXmlPath -Raw -ErrorAction Stop
+        $documentHashtableTree = Convert-WordXmlToHT -Xml $documentXmlObject
+    }
+    catch {
+        Write-Warning "Failed: XML Conversion to Hashtable Tree '$fileExtractPath': $($_.Exception.Message)"
+    }
+
+    <# Walk the tree 
+    'Root' Initial Node
+    @{
+        Root = 
+    }
+
+    'Text' Node Type
+    @{
+        Id     = $id
+        Type   = 'T'
+        Text   = $base.Value
+        Parent = $Parent
+    }
+
+    'Element' Node Type
+    @{
+        Id     = $id
+        Type   = 'E'
+        Name   = $base.Name   # QName e.g. w:bookmarkStart
+        Attr   = $attr
+        Kids   = @()
+        Parent = $Parent
+    }
+    #>
+
+    $hashTableTreeRootNode = if ($documentHashtableTree -is [hashtable] -and $documentHashtableTree.ContainsKey('Root')) { $documentHashtableTree.Root } else { $Tree }
     
 
+    $hashTableTreeRootNode.Id
+    $hashTableTreeRootNode.Type
 }
 
+Lint-DocumentXML -P "C:\Users\rkhor\OneDrive - KPMG\Desktop\Scripts\CLM-PowerShell-Script-Library\Document Linter\testing files\test\word\document.xml" -Verbose
 
