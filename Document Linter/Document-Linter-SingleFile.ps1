@@ -241,7 +241,7 @@ function _Convert-WordHTNodeToXmlString {
     # Handle Text Node
     if ($Node.Type -eq 'T') {
         return (Escape-WordXmlText $Node.Text)
-    }
+    } 
 
     # Validate Element Node's Name
     $name = $Node.Name
