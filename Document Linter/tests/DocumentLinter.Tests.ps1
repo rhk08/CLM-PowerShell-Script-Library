@@ -58,32 +58,34 @@ Describe "Test-Import-Get-Document-XML" {
 # Given .docx path
 # Unzip to a temp location provided by user (not its responsibility to clean up)
 # locate document.xml
-# import object and return it
+# import document.xml as xml object and return it
 
-Describe "Get-Document-XML" {
+Describe "Get-DocumentXML" {
 
-    Context "Positive Tests" {
-        
-        It "extracts .docx into Temp" {
+    Context "Valid .docx file" {
 
-            Mock Write-Host {}
+        It "returns an XML object" {
+            $result = Get-DocumentXML -Path "test.docx"
+
+            $result | Should -Not -BeNullOrEmpty
+            $result.GetType().Name | Should -Be "XmlDocument"
         }
 
-        It "write to host 'documentXML found'" {
-            Mock Write-Host {}
+        It "contains document.xml content" {
+            $result = Get-DocumentXML -Path "test.docx"
+
+            $result.OuterXml | Should -Match "<w:document"
         }
-
-
-        It "returns XML Object" {
-            Mock Write-Host {}
-        }
-
-
     }
 
-    Context "Negative Tests" {
+    Context "Invalid inputs" {
 
+        It "throws when file does not exist" {
+            { Get-DocumentXML -Path "fake.docx" } | Should -Throw
+        }
 
-
+        It "throws when file is not a docx" {
+            { Get-DocumentXML -Path "test.txt" } | Should -Throw
+        }
     }
 }
