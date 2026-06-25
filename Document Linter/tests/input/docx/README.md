@@ -1,0 +1,1 @@
+# Word documents used as test inputs

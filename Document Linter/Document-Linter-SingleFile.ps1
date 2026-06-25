@@ -411,6 +411,8 @@ function Enumerate-Directory {
 
     return $results
 }
+
+
 function Lint-DocumentXML {
     [CmdletBinding()]
     param(
@@ -463,5 +465,14 @@ function Lint-DocumentXML {
     $hashTableTreeRootNode.Type
 }
 
-Lint-DocumentXML -P "C:\Users\rkhor\OneDrive - KPMG\Desktop\Scripts\CLM-PowerShell-Script-Library\Document Linter\testing files\test\word\document.xml" -Verbose
+function Test-Import-Document-Linter-SingleFile{
+    [CmdletBinding()]
+    param(
+    )
+    Write-Host ("[$((Get-PSCallStack)[1].ScriptName)] Sourced Successfully!") -ForegroundColor Green
+
+    return
+}
+
+Lint-DocumentXML -P "C:\Users\rkhor\OneDrive - KPMG\Desktop\Scripts\CLM-PowerShell-Script-Library\Document Linter\testing_files\test\word\document.xml" -Verbose
 
